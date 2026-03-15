@@ -1,0 +1,63 @@
+title SD-06: Pembayaran Pinjaman
+
+actor "Mobile App" as App
+participant "API Gateway" as GW
+participant "Loan Service" as LoanSvc
+participant "Payment Gateway" as PayGW
+participant "Bank / Payment Provider" as Bank
+participant "Notif Service" as NotifSvc
+
+note over App,NotifSvc: Tahap 1 - Generate Virtual Account / Kode Bayar
+
+App->GW: GET /loans/active/repayments
+GW->LoanSvc: Ambil jadwal cicilan aktif milik user
+LoanSvc-->GW: Return daftar cicilan (due_date, amount, status)
+GW-->App: Tampilkan daftar tagihan yang belum dibayar
+
+App->GW: POST /loans/repayments/{repayment_id}/pay
+GW->LoanSvc: Request generate kode pembayaran
+LoanSvc->LoanSvc: Validasi repayment_id milik user
+LoanSvc->LoanSvc: Cek status = UNPAID atau OVERDUE
+
+alt Status sudah PAID
+  LoanSvc-->GW: 400 Bad Request
+  GW-->App: Tagihan ini sudah terbayar
+end
+
+LoanSvc->PayGW: POST /create-va\n(external_id, amount, bank_code, expiry_date)
+PayGW->PayGW: Generate nomor Virtual Account
+PayGW-->LoanSvc: Return va_number, bank_code, expiry_date, external_id
+LoanSvc->LoanSvc: Simpan va_number + external_id ke repayment record
+LoanSvc-->GW: 200 OK (va_number, bank_code, amount, expiry_date)
+GW-->App: Tampilkan Virtual Account / Kode Bayar
+
+note over App,NotifSvc: Tahap 2 - User Melakukan Pembayaran (di luar app)
+
+App->Bank: User transfer via m-banking / ATM\nke nomor Virtual Account
+Bank->PayGW: Konfirmasi pembayaran masuk
+PayGW->PayGW: Validasi nominal dan VA aktif
+
+note over App,NotifSvc: Tahap 3 - Verifikasi dan Update Status
+
+PayGW->GW: POST /webhooks/payment-callback\n(external_id, status: PAID, amount, paid_at)
+GW->LoanSvc: Teruskan webhook callback
+LoanSvc->LoanSvc: Validasi external_id dan amount
+
+alt Nominal tidak sesuai
+  LoanSvc->LoanSvc: Tandai sebagai partial payment
+  LoanSvc->NotifSvc: Notifikasi pembayaran tidak sesuai nominal
+  NotifSvc->App: Email + SMS: Pembayaran tidak sesuai, harap lunasi selisihnya
+end
+
+LoanSvc->LoanSvc: Update repayment status = PAID\nSimpan paid_at = waktu pembayaran
+LoanSvc->LoanSvc: Hitung ulang outstanding_balance pada tabel loans
+
+alt Semua cicilan sudah lunas
+  LoanSvc->LoanSvc: Update loans status = SETTLED
+  LoanSvc->NotifSvc: Trigger notifikasi pinjaman lunas
+  NotifSvc->App: Email + SMS: Selamat, pinjaman Anda telah lunas
+end
+
+LoanSvc->NotifSvc: Trigger notifikasi pembayaran berhasil
+NotifSvc->App: Email + SMS: Pembayaran cicilan berhasil diterima
+LoanSvc-->GW: 200 OK (webhook acknowledged)

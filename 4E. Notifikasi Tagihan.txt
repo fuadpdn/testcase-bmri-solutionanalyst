@@ -1,0 +1,47 @@
+title SD-05: Notifikasi Tagihan Jatuh Tempo
+
+participant "Scheduler / Cron" as Cron
+participant "Loan Service" as LoanSvc
+participant "Notif Service" as NotifSvc
+participant "Email Provider" as EmailSvc
+participant "SMS / WA Gateway" as SMSSvc
+actor "User" as User
+
+note over Cron,User: Reminder H-3 Sebelum Jatuh Tempo (berjalan setiap hari pukul 08.00)
+
+Cron->LoanSvc: GET repayments where due_date = today + 3 AND status = UNPAID
+LoanSvc-->Cron: Return daftar tagihan mendekati jatuh tempo
+Cron->NotifSvc: POST /notifications/send-reminder (batch)
+
+NotifSvc->EmailSvc: Kirim email reminder tagihan
+EmailSvc->User: Email: Tagihan jatuh tempo 3 hari lagi
+
+NotifSvc->SMSSvc: Kirim SMS / WA reminder
+SMSSvc->User: SMS/WA: Reminder tagihan jatuh tempo
+
+NotifSvc->LoanSvc: Simpan record notifikasi ke database
+
+note over Cron,User: Reminder H-1 Sebelum Jatuh Tempo
+
+Cron->LoanSvc: GET repayments where due_date = today + 1 AND status = UNPAID
+LoanSvc-->Cron: Return daftar tagihan H-1
+Cron->NotifSvc: POST /notifications/send-reminder H-1 (batch)
+
+NotifSvc->EmailSvc: Kirim email reminder H-1
+EmailSvc->User: Email: Tagihan jatuh tempo besok
+
+NotifSvc->SMSSvc: Kirim SMS / WA reminder H-1
+SMSSvc->User: SMS/WA: Tagihan jatuh tempo besok
+
+note over Cron,User: Deteksi Overdue H+1 Setelah Jatuh Tempo
+
+Cron->LoanSvc: GET repayments where due_date < today AND status = UNPAID
+LoanSvc->LoanSvc: Update status = OVERDUE
+LoanSvc-->Cron: Return daftar tagihan overdue
+Cron->NotifSvc: POST /notifications/overdue-alert (batch)
+
+NotifSvc->EmailSvc: Kirim email overdue notice
+EmailSvc->User: Email: Tagihan telah melewati jatuh tempo
+
+NotifSvc->SMSSvc: Kirim SMS overdue notice
+SMSSvc->User: SMS/WA: Tagihan overdue, harap segera lunasi

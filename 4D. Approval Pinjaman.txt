@@ -1,0 +1,50 @@
+title SD-04: Review dan Approval Pinjaman
+
+actor "User" as User
+actor "Admin" as Admin
+
+participant "Loan Service" as LoanSvc
+participant "Risk Scoring Service" as RiskSvc
+participant "Credit Bureau" as Bureau
+participant "Notif Service" as NotifSvc
+
+ 
+note over LoanSvc,User: Tahap 1 - Penilaian Risiko Otomatis
+ 
+LoanSvc->RiskSvc: Request risk assessment\n(user_id, amount, tenor)
+RiskSvc->Bureau: GET riwayat kredit (NIK, nama_lengkap)
+Bureau-->RiskSvc: Return credit_score, payment_history, kolektibilitas
+RiskSvc->RiskSvc: Hitung risk_score (0-100)
+RiskSvc-->LoanSvc: Return risk_score dan recommendation
+LoanSvc->LoanSvc: Simpan ke credit_score_results
+ 
+alt Risk Score di bawah threshold (auto-reject)
+  LoanSvc->LoanSvc: Update status = REJECTED
+  LoanSvc->NotifSvc: Trigger notifikasi REJECTED
+  NotifSvc->User: Email + SMS: Pengajuan ditolak
+end
+ 
+note over LoanSvc,User: Tahap 2 - Review Manual oleh Admin
+ 
+LoanSvc->LoanSvc: Update status = PENDING_MANUAL_REVIEW
+LoanSvc->Admin: Kirim ke antrian review admin
+ 
+Admin->LoanSvc: GET /admin/loans/applications
+LoanSvc-->Admin: Daftar pengajuan beserta detail user dan risk score
+Admin->Admin: Evaluasi dokumen, data diri, dan hasil risk scoring
+ 
+alt Admin Approve
+  Admin->LoanSvc: POST /admin/loans/applications/{id}/review\n(decision: APPROVED)
+  LoanSvc->LoanSvc: Update status = APPROVED
+  LoanSvc->LoanSvc: Buat record loans + jadwal loan_repayments
+  LoanSvc->NotifSvc: Trigger notifikasi APPROVED
+  NotifSvc->User: Email + SMS: Pinjaman disetujui, dana akan dicairkan
+  LoanSvc->LoanSvc: Trigger pencairan dana via Payment Gateway
+end
+ 
+alt Admin Reject
+  Admin->LoanSvc: POST /admin/loans/applications/{id}/review\n(decision: REJECTED, notes: alasan)
+  LoanSvc->LoanSvc: Update status = REJECTED
+  LoanSvc->NotifSvc: Trigger notifikasi REJECTED
+  NotifSvc->User: Email + SMS: Pengajuan ditolak beserta alasan
+end

@@ -1,0 +1,57 @@
+title SD-02: Login
+ 
+actor "Mobile App" as App
+participant "API Gateway" as GW
+participant "Auth Service" as AuthSvc
+participant "Redis Cache" as Redis
+ 
+note over App,Redis: Skenario A - Login dengan Password
+ 
+App->GW: POST /auth/login\n(email, password)
+GW->AuthSvc: Teruskan request login
+AuthSvc->Redis: Cek rate limit / akun ter-lock
+ 
+alt Akun ter-lock (>3x gagal)
+  Redis-->AuthSvc: BLOCKED
+  AuthSvc-->GW: 429 Too Many Requests
+  GW-->App: Akun terkunci selama 15 menit
+end
+ 
+Redis-->AuthSvc: OK
+AuthSvc->AuthSvc: Verifikasi password hash
+ 
+alt Password salah
+  AuthSvc->Redis: Increment failed_attempt counter
+  AuthSvc-->GW: 401 Unauthorized
+  GW-->App: Email atau password salah
+end
+ 
+AuthSvc->Redis: Reset failed_attempt counter
+AuthSvc->AuthSvc: Generate JWT access_token + refresh_token
+AuthSvc-->GW: 200 OK (access_token, refresh_token, biometric_enabled)
+GW-->App: Login berhasil - redirect ke Home
+ 
+note over App,Redis: Skenario B - Login dengan Biometric
+ 
+App->GW: POST /auth/biometric-login\n(device_id, bio_token)
+GW->AuthSvc: Teruskan request biometric
+AuthSvc->AuthSvc: Validasi device_id terdaftar
+AuthSvc->AuthSvc: Verifikasi bio_token signature
+ 
+alt Device atau token tidak valid
+  AuthSvc-->GW: 401 Unauthorized
+  GW-->App: Biometric tidak valid, gunakan password
+end
+ 
+AuthSvc->AuthSvc: Generate JWT access_token + refresh_token
+AuthSvc-->GW: 200 OK (access_token, refresh_token)
+GW-->App: Login berhasil - redirect ke Home
+ 
+note over App,Redis: Skenario C - Lupa Password
+ 
+App->GW: POST /auth/forgot-password (email)
+GW->AuthSvc: Teruskan request
+AuthSvc->AuthSvc: Cek email terdaftar
+AuthSvc->Redis: Simpan reset_token (TTL 1 jam)
+AuthSvc-->GW: 200 OK
+GW-->App: Cek email untuk link reset password

@@ -1,0 +1,49 @@
+title SD-03: Pengajuan Pinjaman
+ 
+actor "Mobile App" as App
+participant "API Gateway" as GW
+participant "Loan Service" as LoanSvc
+participant "User Service" as UserSvc
+participant "Notif Service" as NotifSvc
+ 
+App->GW: GET /loans/simulate?amount=X&tenor=Y
+GW->LoanSvc: Hitung simulasi cicilan
+LoanSvc->LoanSvc: Kalkulasi cicilan + breakdown per bulan
+LoanSvc-->GW: 200 OK (monthly_payment, schedule[])
+GW-->App: Tampilkan simulasi dan breakdown cicilan
+ 
+App->GW: GET /users/bank-accounts
+GW->UserSvc: Ambil rekening bank user
+UserSvc-->GW: Return daftar rekening
+ 
+alt Belum ada rekening terdaftar
+  GW-->App: Tampilkan form Tambah Rekening Bank
+  App->GW: POST /users/bank-accounts\n(bank_name, account_number, account_name)
+  GW->UserSvc: Simpan rekening pencairan
+  UserSvc-->GW: 201 Created
+  GW-->App: Rekening berhasil ditambahkan
+end
+ 
+GW-->App: Tampilkan rekening pencairan aktif
+ 
+App->GW: POST /loans/apply\n(amount, tenor_months, bank_account_id)
+GW->LoanSvc: Proses pengajuan pinjaman
+LoanSvc->LoanSvc: Cek pinjaman aktif milik user
+ 
+alt Ada pinjaman aktif
+  LoanSvc-->GW: 409 Conflict
+  GW-->App: Tidak bisa ajukan pinjaman baru\nselama pinjaman sebelumnya belum lunas
+end
+ 
+LoanSvc->LoanSvc: Validasi nominal (maks 12jt) dan tenor (maks 12 bulan)
+ 
+alt Nominal atau tenor melebihi batas
+  LoanSvc-->GW: 400 Bad Request
+  GW-->App: Nominal atau tenor melebihi batas yang ditentukan
+end
+ 
+LoanSvc->LoanSvc: Buat record loan_application\nstatus = PENDING_REVIEW
+LoanSvc->NotifSvc: Kirim notifikasi pengajuan diterima
+NotifSvc-->App: Email + SMS: Pengajuan sedang diproses
+LoanSvc-->GW: 201 Created (application_id, status: PENDING_REVIEW)
+GW-->App: Tampilkan halaman Status Pengajuan

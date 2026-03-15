@@ -1,0 +1,44 @@
+title SD-01: Registrasi User
+
+actor "Mobile App" as App
+participant "API Gateway" as GW
+participant "User Service" as UserSvc
+participant "File Storage" as FileSvc
+participant "Email/SMS" as Notif
+
+App->GW: POST /auth/register\n(nama, NIK, TTL, email, HP, password)
+GW->UserSvc: Validasi format data
+UserSvc->UserSvc: Cek duplikat NIK / email / HP
+
+alt Data sudah terdaftar
+  UserSvc-->GW: 400 Bad Request
+  GW-->App: NIK / email / HP sudah terdaftar
+end
+
+UserSvc-->GW: 200 OK - data valid
+GW-->App: Tampilkan form upload dokumen
+
+App->GW: POST /auth/upload-docs\n(foto_pribadi, foto_ktp, selfie_ktp)
+GW->FileSvc: Upload 3 file (multipart)
+FileSvc->FileSvc: Validasi format & ukuran file
+FileSvc-->GW: Return photo_url, ktp_url, selfie_url
+GW->UserSvc: Simpan user data + doc URLs ke database
+UserSvc->UserSvc: Set status = PENDING_VERIFICATION
+
+UserSvc->Notif: Kirim OTP ke nomor HP
+Notif-->App: SMS: Kode OTP 6 digit
+
+UserSvc-->GW: 201 Created (user_id)
+GW-->App: Tampilkan halaman Verifikasi OTP
+
+App->GW: POST /auth/verify-otp\n(user_id, otp_code)
+GW->UserSvc: Validasi OTP
+
+alt OTP salah atau expired
+  UserSvc-->GW: 400 Bad Request
+  GW-->App: Kode OTP salah atau kadaluarsa
+end
+
+UserSvc->UserSvc: Set status = ACTIVE
+UserSvc-->GW: 200 OK (access_token, refresh_token)
+GW-->App: Registrasi berhasil - redirect ke Home
