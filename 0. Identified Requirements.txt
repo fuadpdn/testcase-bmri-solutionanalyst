@@ -1,0 +1,28 @@
+PT XYZ adalah sebuah perusahaan fintech yang ingin mengembangkan mobile apps mereka. Dalam upaya menjangkau pengguna yang lebih luas, PT. XYZ ingin mengembangkan aplikasi pinjaman online
+
+High Level User Story
+1.	Registrasi dengan data diri (nama, nik, tempat tanggal lahir, dan lainnya), email, nomor HP, foto pribadi, foto ktp, dan selfie dengan ktp
+2.	Login 
+a.	Dengan password
+b.	Biometric (apabila user enable dan di device user tersedia)
+c.	Forgot Password
+3.	Profile Information
+a.	Sisa Hutang 
+b.	Tagihan per bulan
+c.	Tagihan Jatuh tempo dan tanggal jatuh tempo
+d.	Pinjaman Tersedia (Jika belum ada pinjaman)
+e.	Ubah informasi pribadi (yang bisa diubah hanya data bank pencairan pinjaman)
+4.	Limit pinjaman adalah 12 juta dengan tenor maksimal 1 tahun
+5.	User dapat mengajukan pinjaman
+a.	User dapat memilih nominal pinjaman dan tenor nya
+b.	Aplikasi akan menampilkan tagihan perbulan dan breakdown (pokok dan bunga) setiap bulannya
+c.	Apabila user belum mendaftarkan rekening pencairan pinjaman, maka akan ada halaman untuk menambahkan rekening pencairan pinjaman
+6.	Proses Review pinjaman akan melalui dua tahap
+a.	Otomatis via Risk Scoring (ada integrasi dengan lembaga penilai kredit)
+b.	Approval oleh admin
+7.	setiap update status pengajuan (approved atau reject)akan ada notifikasi via email dan nomor telepon
+8.	User tidak dapat melakukan pinjaman baru, selama masih ada pinjaman sebelumnya
+9.	Notification 
+a.	untuk reminder tagihan yang akan jatuh tempo
+b.	Marketing notification
+10.	Activity History tercatat di database
